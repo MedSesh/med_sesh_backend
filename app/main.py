@@ -1,15 +1,19 @@
-from fastapi import FastAPI, Depends, HTTPException
-from sqlalchemy.orm import Session
-from app.database import SessionLocal, engine
-from app.models.models import Base, Student
-import app.crud.crud as crud
+from fastapi import FastAPI, Depends
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from app.models import Base
+from app.crud import course_crud, student_crud
+from app.schemas import course, student
 
+# Initialize FastAPI app
 app = FastAPI()
 
-# Create tables
-Base.metadata.create_all(bind=engine)
+# Database connection setup
+DATABASE_URL = "sqlite:///./test.db"  # Use your SQLite database file
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Dependency to get the database session for each request
+# Dependency to get DB session
 def get_db():
     db = SessionLocal()
     try:
@@ -17,42 +21,23 @@ def get_db():
     finally:
         db.close()
 
-# Root endpoint with a general welcome message
-@app.get("/")
-async def read_root():
-    return {"message": "Welcome to MedSesh API! Providing medical and healthcare learning resources."}
+# Create tables in the database
+Base.metadata.create_all(bind=engine)
 
-# Endpoint for general medical content (can be expanded in the future)
-@app.get("/medical-info/{topic_name}")
-async def read_medical_info(topic_name: str):
-    medical_info = {
-        "insulin": "Insulin is a hormone that regulates blood glucose levels.",
-        "cortisol": "Cortisol is a steroid hormone released in response to stress.",
-        "hypertension": "Hypertension is high blood pressure, a common condition that can lead to heart disease and stroke."
-    }
-    return {"topic": topic_name, "info": medical_info.get(topic_name.lower(), "Information not available for this topic.")}
+# Routes for course management
+@app.post("/courses/", response_model=course.CourseCreate)
+def create_course(course_data: course.CourseCreate, db: Session = Depends(get_db)):
+    return course_crud.create_course(db=db, course_data=course_data)
 
-# Endpoint to create a new student
-@app.post("/students/")
-async def create_student(name: str, major: str, db: Session = Depends(get_db)):
-    db_student = crud.create_student(db=db, name=name, major=major)
-    return db_student
+@app.get("/courses/{course_id}", response_model=course.CourseCreate)
+def get_course(course_id: int, db: Session = Depends(get_db)):
+    return course_crud.get_course(db=db, course_id=course_id)
 
-# Endpoint to read a student by ID
-@app.get("/students/{student_id}")
-async def read_student(student_id: int, db: Session = Depends(get_db)):
-    db_student = crud.get_student(db=db, student_id=student_id)
-    if db_student is None:
-        raise HTTPException(status_code=404, detail="Student not found")
-    return db_student
+# Routes for student management (similarly for students)
+@app.post("/students/", response_model=student.StudentCreate)
+def create_student(student_data: student.StudentCreate, db: Session = Depends(get_db)):
+    return student_crud.create_student(db=db, student_data=student_data)
 
-# Endpoint to read all students
-@app.get("/students/")
-async def read_students(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    students = crud.get_students(db=db, skip=skip, limit=limit)
-    return students
-
-# Run the server when executing this file
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+@app.get("/students/{student_id}", response_model=student.StudentCreate)
+def get_student(student_id: int, db: Session = Depends(get_db)):
+    return student_crud.get_student(db=db, student_id=student_id)
