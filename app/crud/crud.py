@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from models import Student, Course
+from app.models.models import Student, Course
 
 # Function to create a new student
 def create_student(db: Session, name: str, major: str):
